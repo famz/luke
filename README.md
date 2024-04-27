@@ -1,5 +1,7 @@
 # luke
-a linux toolkit
+
+a linux toolkit, something you can survive with if it's the last thing to keep
+in your linux userspace.
 
 # Major features
 
