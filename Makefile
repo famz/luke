@@ -15,6 +15,8 @@ test: FORCE build/vmlinuz build/initrd
 	qemu-system-x86_64 -enable-kvm -smp cores=1 -m 2g \
 		-nographic \
 		-nodefaults \
+		-netdev user,id=usernet \
+		-device virtio-net-pci,netdev=usernet \
 		-kernel build/vmlinuz \
 		-initrd build/initrd \
 		-append 'console=ttyS0' -serial stdio
@@ -29,8 +31,13 @@ build/linux/.config: build/linux/.git
 build/linux/.git:
 		git clone --depth=1 https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git -b v6.6.9 build/linux
 
-build/initrd: build/luke
+build/initrd: build/luke Makefile bin/busybox
 	rm -rf build/initrd-build
 	mkdir -p build/initrd-build
+	cd build/initrd-build && mkdir -p bin etc
+	cp bin/busybox build/initrd-build/bin
+	cd build/initrd-build/bin && \
+		./busybox --list | while read x; do ln -s busybox $$x; done && \
+		rm -f init
 	cp build/luke build/initrd-build/init
 	(cd build/initrd-build && find . | cpio --quiet -o -H newc | gzip -9) > $@

@@ -1,6 +1,7 @@
 use std::thread;
 use std::time::Duration;
-use std::process;
+use std::process::{self, Command};
+use anyhow::Result;
 use nc;
 
 fn main() {
@@ -10,8 +11,16 @@ fn main() {
     println!("Hello, luke!");
 }
 
+fn run_etc_init() -> Result<()> {
+    let st = Command::new("/bin/sh")
+        .arg("-i")
+        .status()?;
+    Ok(())
+}
+
 fn init_main() {
     println!("running luke as init...");
+    run_etc_init().expect("run /etc/init");
     poweroff();
 }
 
