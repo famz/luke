@@ -1,0 +1,20 @@
+[project]
+name = "feishu-bot"
+version = "0.1.0"
+description = "Feishu bot that mirrors chat messages into Bitable tables."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "requests>=2.31",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=4.1",
+]
+
+[tool.pytest.ini_options]
+addopts = "-ra --cov=feishu_bot --cov-report=term-missing"
+testpaths = ["tests"]
+
