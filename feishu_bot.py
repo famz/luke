@@ -13,10 +13,12 @@ Usage:
 import argparse
 import json
 import logging
+import re
 import sys
 import time
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
+from typing import Callable, Dict, List, Optional
 
 import requests
 
@@ -24,16 +26,103 @@ import requests
 # Hard-coded configuration (replace the placeholders with real identifiers)
 # ---------------------------------------------------------------------------
 
-CHAT_ID = "oc_xxxxxxxxxxxxxxxxxxxxxxxxx"
-BITABLE_APP_TOKEN = "bascnxxxxxxxxxxxxxxxxxxxx"
-BITABLE_TABLE_ID = "tblxxxxxxxxxxxxxxxxxxxx"
+@dataclass(frozen=True)
+class ChatBehavior:
+    """Mapping that describes how a chat should be mirrored into Bitable."""
 
-# Map internal keys to the actual field names in your Bitable table.
-BITABLE_FIELD_MAPPING = {
-    "message": "Message",
-    "message_id": "Message ID",
-    "sender": "Sender",
-    "sent_at": "Sent At",
+    chat_id: str
+    bitable_app_token: str
+    bitable_table_id: str
+    field_mapping: Dict[str, str]
+    name: str = ""
+    static_fields: Dict[str, str] = field(default_factory=dict)
+    extra_field_builder: Optional[Callable[[Dict, str], Dict[str, str]]] = None
+
+
+def _todo_extra_fields(_: Dict, text: str) -> Dict[str, str]:
+    """Generate extra fields for todo-style chats."""
+    return {"Status": "Pending", "Todo Detail": text.strip()}
+
+
+def _accounting_extra_fields(_: Dict, text: str) -> Dict[str, str]:
+    """Extract a numeric amount from the text if present."""
+    match = re.search(r"([+-]?\d+(?:\.\d{1,2})?)", text)
+    return {"Amount": match.group(1)} if match else {}
+
+
+def _automation_extra_fields(message: Dict, _: str) -> Dict[str, str]:
+    """Mirror the message type to highlight automation triggers."""
+    message_type = message.get("message_type") or message.get("body", {}).get("type")
+    return {"Trigger Type": message_type or "unknown"}
+
+
+def _reminder_extra_fields(_: Dict, text: str) -> Dict[str, str]:
+    """Use the first line of text as reminder title if available."""
+    first_line = text.strip().splitlines()[0] if text.strip() else ""
+    return {"Reminder Title": first_line}
+
+
+CHAT_BEHAVIORS: Dict[str, ChatBehavior] = {
+    # Todo chat
+    "oc_xxxxxxxxxxxxxxxxxxxxx_todo": ChatBehavior(
+        chat_id="oc_xxxxxxxxxxxxxxxxxxxxx_todo",
+        bitable_app_token="bascnxxxxxxxxxxxxxxxxxxxx_todo",
+        bitable_table_id="tblxxxxxxxxxxxxxxxxxxxx_todo",
+        field_mapping={
+            "message": "Task",
+            "message_id": "Source Message ID",
+            "sender": "Owner",
+            "sent_at": "Created At",
+        },
+        name="Todo",
+        static_fields={"Category": "Todo"},
+        extra_field_builder=_todo_extra_fields,
+    ),
+    # Accounting chat
+    "oc_xxxxxxxxxxxxxxxxxxxxx_accounting": ChatBehavior(
+        chat_id="oc_xxxxxxxxxxxxxxxxxxxxx_accounting",
+        bitable_app_token="bascnxxxxxxxxxxxxxxxxxxxx_accounting",
+        bitable_table_id="tblxxxxxxxxxxxxxxxxxxxx_accounting",
+        field_mapping={
+            "message": "Description",
+            "message_id": "Message ID",
+            "sender": "Submitted By",
+            "sent_at": "Submitted At",
+        },
+        name="Accounting",
+        static_fields={"Category": "Accounting"},
+        extra_field_builder=_accounting_extra_fields,
+    ),
+    # Automation chat
+    "oc_xxxxxxxxxxxxxxxxxxxxx_automation": ChatBehavior(
+        chat_id="oc_xxxxxxxxxxxxxxxxxxxxx_automation",
+        bitable_app_token="bascnxxxxxxxxxxxxxxxxxxxx_automation",
+        bitable_table_id="tblxxxxxxxxxxxxxxxxxxxx_automation",
+        field_mapping={
+            "message": "Instruction",
+            "message_id": "Message ID",
+            "sender": "Requested By",
+            "sent_at": "Requested At",
+        },
+        name="Automation",
+        static_fields={"Category": "Automation"},
+        extra_field_builder=_automation_extra_fields,
+    ),
+    # Reminder chat
+    "oc_xxxxxxxxxxxxxxxxxxxxx_reminder": ChatBehavior(
+        chat_id="oc_xxxxxxxxxxxxxxxxxxxxx_reminder",
+        bitable_app_token="bascnxxxxxxxxxxxxxxxxxxxx_reminder",
+        bitable_table_id="tblxxxxxxxxxxxxxxxxxxxx_reminder",
+        field_mapping={
+            "message": "Reminder Body",
+            "message_id": "Message ID",
+            "sender": "Created By",
+            "sent_at": "Reminder Time",
+        },
+        name="Reminder",
+        static_fields={"Category": "Reminder"},
+        extra_field_builder=_reminder_extra_fields,
+    ),
 }
 
 
